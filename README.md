@@ -50,3 +50,10 @@ Software Developer | Tech & Business Enthusiast
 - Graphical User Interface (GUI)  
 - Database integration  
 - Reporting and analytics  
+
+📥 Installation
+
+To run this project locally, follow these steps:
+git clone https://github.com/kristyriano/inventory_system.git
+And for navigate to the folder
+cd inventory_system
