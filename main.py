@@ -286,13 +286,42 @@ class InventoryApp:
 
         return entry
 
-    # ── Add product (original logic, unchanged) ───────────────────────────────
+    # ── Add product ───────────────────────────────────────────────────────────
 
     def add_product(self):
         name, category, price, quantity = self._read_fields()
         if name is None:
             return
 
+        # ── Duplicate check: match by product name (case-insensitive) ──────
+        duplicate_index = next(
+            (i for i, p in enumerate(self.products)
+             if p["name"].lower() == name.lower()),
+            None,
+        )
+
+        if duplicate_index is not None:
+            # Ask the manager whether to switch to editing the existing product
+            confirm = messagebox.askyesno(
+                "Product Already Exists",
+                f'"{name}" is already in the inventory.\n\n'
+                "Would you like to edit the existing product instead?",
+            )
+            if confirm:
+                # Load the existing product into edit mode
+                self.edit_index = duplicate_index
+                product = self.products[self.edit_index]
+                self._set_field(self.name_entry,     product["name"])
+                self._set_field(self.category_entry, product["category"])
+                self._set_field(self.price_entry,    str(product["price"]))
+                self._set_field(self.quantity_entry, str(product["quantity"]))
+                self.edit_mode = True
+                self._apply_edit_mode_ui()
+                self.status_label.config(text=f"Editing existing: {name}")
+            # If "No", do nothing — manager can correct the name themselves
+            return
+
+        # No duplicate — add as new product
         product = {
             "name":     name,
             "category": category,
