@@ -13,11 +13,8 @@ class InventoryApp:
 
         self.root.configure(bg="#f3f6fb")
  
-        # --- FULLSCREEN ---
-
-        self.root.attributes("-fullscreen", True)
-
-        self.root.bind("<Escape>", lambda e: self.root.attributes("-fullscreen", False))
+        # --- START MAXIMISED (system window with OS controls) ---
+        self.root.state("zoomed")
  
         self.products = []
  
@@ -26,6 +23,11 @@ class InventoryApp:
         self.edit_mode = False
 
         self.edit_index = None
+
+        # --- SEARCH STATE ---
+        # Holds the current search string; empty string means no filter active.
+        self.search_var = tk.StringVar()
+        self.search_var.trace_add("write", lambda *_: self.apply_search_filter())
  
         self.configure_styles()
 
@@ -507,6 +509,67 @@ class InventoryApp:
 
         self.remove_button.pack(side="right", padx=(0, 8))
  
+        # ── Search / filter bar ─────────────────────────────────────────────
+        search_bar = tk.Frame(table_card, bg="white")
+        search_bar.pack(fill="x", padx=20, pady=(0, 10))
+
+        search_icon = tk.Label(
+            search_bar,
+            text="🔍",
+            font=("Segoe UI", 11),
+            bg="white",
+            fg="#6b7280",
+        )
+        search_icon.pack(side="left", padx=(0, 4))
+
+        tk.Label(
+            search_bar,
+            text="Search",
+            font=("Segoe UI", 10, "bold"),
+            bg="white",
+            fg="#374151",
+        ).pack(side="left", padx=(0, 8))
+
+        self.search_entry = tk.Entry(
+            search_bar,
+            textvariable=self.search_var,
+            font=("Segoe UI", 10),
+            bg="#f8fafc",
+            fg="#111827",
+            relief="solid",
+            bd=1,
+            highlightthickness=1,
+            highlightbackground="#cbd5e1",
+            highlightcolor="#3b82f6",
+        )
+        self.search_entry.pack(side="left", fill="x", expand=True, ipady=6)
+
+        self.search_clear_btn = tk.Button(
+            search_bar,
+            text="✕",
+            font=("Segoe UI", 9, "bold"),
+            bg="#f1f5f9",
+            fg="#6b7280",
+            activebackground="#e2e8f0",
+            activeforeground="#1f2937",
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            padx=8,
+            pady=4,
+            command=self._clear_search,
+        )
+        self.search_clear_btn.pack(side="left", padx=(6, 0))
+
+        self.search_results_label = tk.Label(
+            search_bar,
+            text="",
+            font=("Segoe UI", 9),
+            bg="white",
+            fg="#6b7280",
+        )
+        self.search_results_label.pack(side="left", padx=(10, 0))
+
         table_container = tk.Frame(table_card, bg="white")
 
         table_container.pack(fill="both", expand=True, padx=20, pady=(0, 20))
@@ -539,8 +602,6 @@ class InventoryApp:
 
         self.tree.heading("quantity", text="Quantity")
  
-        # --- RESPONSIVE COLUMNS (stretch to fill fullscreen) ---
-
         self.tree.column("name", minwidth=220, anchor="center", stretch=True)
 
         self.tree.column("category", minwidth=180, anchor="center", stretch=True)
@@ -1344,7 +1405,7 @@ class InventoryApp:
         dialog.bind("<Return>", lambda e: confirm_sale())
  
     # ── UI mode helpers ───────────────────────────────────────────────────────
- 
+
     def _apply_edit_mode_ui(self):
 
         self.subtitle_label.config(text="Editing Product")
@@ -1482,33 +1543,47 @@ class InventoryApp:
     # ── Table helpers ─────────────────────────────────────────────────────────
  
     def refresh_table(self):
+        """Repopulate the Treeview, respecting any active search filter."""
+        query = self.search_var.get().strip().lower() if hasattr(self, "search_var") else ""
 
         for row in self.tree.get_children():
-
             self.tree.delete(row)
- 
+
+        matched = 0
         for product in self.products:
-
+            # Match against name OR category (case-insensitive)
+            if query and query not in product["name"].lower() and query not in product["category"].lower():
+                continue
             self.tree.insert(
-
                 "",
-
                 "end",
-
                 values=(
-
                     product["name"],
-
                     product["category"],
-
                     f"${product['price']:.2f}",
-
                     product["quantity"],
-
                 ),
-
             )
+            matched += 1
+
+        # Update the results count label if it exists
+        if hasattr(self, "search_results_label"):
+            if query:
+                self.search_results_label.config(
+                    text=f"{matched} of {len(self.products)} product(s) found"
+                )
+            else:
+                self.search_results_label.config(text="")
  
+    def apply_search_filter(self):
+        """Called automatically whenever the search field changes."""
+        self.refresh_table()
+
+    def _clear_search(self):
+        """Clear the search field and restore the full product list."""
+        self.search_var.set("")
+        self.search_entry.focus_set()
+
     def update_summary(self):
 
         self.total_products_label.config(text=str(len(self.products)))
@@ -1531,4 +1606,3 @@ if __name__ == "__main__":
     app = InventoryApp(root)
 
     root.mainloop()
- 
