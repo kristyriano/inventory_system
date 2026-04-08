@@ -230,6 +230,46 @@ class InventoryApp:
         )
         self.edit_button.pack(side="right", padx=(0, 12))
 
+        # IS-8: Sell / decrease stock button
+        self.sell_button = tk.Button(
+            table_header,
+            text="🛒  Sell Selected",
+            font=("Segoe UI", 10, "bold"),
+            bg="#f0fdf4",
+            fg="#15803d",
+            activebackground="#dcfce7",
+            activeforeground="#14532d",
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            padx=12,
+            pady=4,
+            highlightthickness=1,
+            highlightbackground="#86efac",
+            command=self.sell_stock_dialog,
+        )
+        self.sell_button.pack(side="right", padx=(0, 8))
+
+        # IS-6: Remove discontinued product button
+        self.remove_button = tk.Button(
+            table_header,
+            text="🗑  Remove Selected",
+            font=("Segoe UI", 10, "bold"),
+            bg="#fff1f2",
+            fg="#be123c",
+            activebackground="#ffe4e6",
+            activeforeground="#9f1239",
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            padx=12,
+            pady=4,
+            highlightthickness=1,
+            highlightbackground="#fecdd3",
+            command=self.remove_selected_product,
+        )
+        self.remove_button.pack(side="right", padx=(0, 8))
+
         table_container = tk.Frame(table_card, bg="white")
         table_container.pack(fill="both", expand=True, padx=20, pady=(0, 20))
 
@@ -391,6 +431,224 @@ class InventoryApp:
         """Discard any changes in the form and exit edit mode."""
         self._exit_edit_mode()
         self.status_label.config(text="Edit cancelled.")
+
+    # ── IS-6: Remove discontinued product ────────────────────────────────────
+
+    def remove_selected_product(self):
+        """
+        Removes the selected product from self.products after confirming
+        with the manager. If the product being removed is currently loaded
+        in edit mode, edit mode is cancelled first to keep state consistent.
+        """
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning(
+                "No Selection",
+                "Please select a product row in the table before removing.",
+            )
+            return
+
+        # Resolve the selected row to its index in self.products
+        all_items  = self.tree.get_children()
+        del_index  = list(all_items).index(selected[0])
+        product    = self.products[del_index]
+
+        # Ask for confirmation before permanently deleting
+        confirm = messagebox.askyesno(
+            "Remove Product",
+            f'Are you sure you want to remove "{product["name"]}" from the inventory?\n\n'
+            "This action cannot be undone.",
+        )
+        if not confirm:
+            return
+
+        removed_name = product["name"]
+
+        # If this product is currently open in edit mode, exit edit mode first
+        if self.edit_mode and self.edit_index == del_index:
+            self._exit_edit_mode()
+
+        # Remove from the data list and refresh the UI
+        del self.products[del_index]
+        self.refresh_table()
+        self.update_summary()
+        self.status_label.config(text=f"Removed: {removed_name}")
+
+
+    # ── IS-8: Decrease stock when items are sold ─────────────────────────────
+
+    def sell_stock_dialog(self):
+        """
+        Opens a modal dialog for the manager to enter the number of units sold
+        for the selected product. Deducts the amount from the product's quantity,
+        warns if stock is insufficient, and flags the product as out-of-stock
+        if quantity reaches zero.
+        """
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning(
+                "No Selection",
+                "Please select a product row in the table before recording a sale.",
+            )
+            return
+
+        all_items   = self.tree.get_children()
+        sell_index  = list(all_items).index(selected[0])
+        product     = self.products[sell_index]
+
+        if product["quantity"] == 0:
+            messagebox.showwarning(
+                "Out of Stock",
+                f'"{product["name"]}" is already out of stock and cannot be sold.',
+            )
+            return
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Record Sale")
+        dialog.geometry("360x260")
+        dialog.resizable(False, False)
+        dialog.configure(bg="white")
+        dialog.grab_set()
+
+        self.root.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width()  // 2) - 180
+        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - 130
+        dialog.geometry(f"+{x}+{y}")
+
+        dialog_header = tk.Frame(dialog, bg="#15803d", height=48)
+        dialog_header.pack(fill="x")
+        dialog_header.pack_propagate(False)
+        tk.Label(
+            dialog_header,
+            text="Record Sale",
+            font=("Segoe UI", 13, "bold"),
+            bg="#15803d",
+            fg="white",
+        ).pack(side="left", padx=16, pady=12)
+
+        info_frame = tk.Frame(dialog, bg="white")
+        info_frame.pack(fill="x", padx=20, pady=(16, 0))
+
+        tk.Label(
+            info_frame,
+            text=f"Product:  {product['name']}",
+            font=("Segoe UI", 10, "bold"),
+            bg="white",
+            fg="#1f2937",
+        ).pack(anchor="w")
+
+        tk.Label(
+            info_frame,
+            text=f"Current Stock:  {product['quantity']} units",
+            font=("Segoe UI", 10),
+            bg="white",
+            fg="#6b7280",
+        ).pack(anchor="w", pady=(4, 0))
+
+        entry_frame = tk.Frame(dialog, bg="white")
+        entry_frame.pack(fill="x", padx=20, pady=(14, 0))
+
+        tk.Label(
+            entry_frame,
+            text="Units Sold",
+            font=("Segoe UI", 10, "bold"),
+            bg="white",
+            fg="#374151",
+        ).pack(anchor="w")
+
+        qty_entry = tk.Entry(
+            entry_frame,
+            font=("Segoe UI", 11),
+            bg="white",
+            fg="#111827",
+            relief="solid",
+            bd=1,
+            highlightthickness=1,
+            highlightbackground="#cbd5e1",
+            highlightcolor="#15803d",
+            width=16,
+        )
+        qty_entry.pack(anchor="w", pady=(6, 0), ipady=6)
+        qty_entry.focus_set()
+
+        def confirm_sale():
+            raw = qty_entry.get().strip()
+            try:
+                units_sold = int(raw)
+                if units_sold <= 0:
+                    raise ValueError
+            except ValueError:
+                messagebox.showerror(
+                    "Invalid Input",
+                    "Units sold must be a positive whole number.",
+                    parent=dialog,
+                )
+                return
+
+            if units_sold > product["quantity"]:
+                messagebox.showwarning(
+                    "Insufficient Stock",
+                    f'Only {product["quantity"]} unit(s) of "{product["name"]}" '
+                    f"are in stock.\nYou cannot sell {units_sold} unit(s).",
+                    parent=dialog,
+                )
+                return
+
+            self.products[sell_index]["quantity"] -= units_sold
+            new_qty = self.products[sell_index]["quantity"]
+
+            self.refresh_table()
+            self.update_summary()
+            dialog.destroy()
+
+            if new_qty == 0:
+                messagebox.showinfo(
+                    "Out of Stock",
+                    f'"{product["name"]}" is now out of stock.',
+                )
+                self.status_label.config(text=f"Out of stock: {product['name']}")
+            else:
+                self.status_label.config(
+                    text=f"Sold {units_sold} unit(s) of {product['name']} — {new_qty} remaining"
+                )
+
+        btn_frame = tk.Frame(dialog, bg="white")
+        btn_frame.pack(fill="x", padx=20, pady=(16, 0))
+
+        tk.Button(
+            btn_frame,
+            text="Confirm Sale",
+            font=("Segoe UI", 10, "bold"),
+            bg="#15803d",
+            fg="white",
+            activebackground="#14532d",
+            activeforeground="white",
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            padx=14,
+            pady=8,
+            command=confirm_sale,
+        ).pack(side="left")
+
+        tk.Button(
+            btn_frame,
+            text="Cancel",
+            font=("Segoe UI", 10),
+            bg="#eef2f7",
+            fg="#1f2937",
+            activebackground="#e5e7eb",
+            activeforeground="#111827",
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            padx=14,
+            pady=8,
+            command=dialog.destroy,
+        ).pack(side="left", padx=(10, 0))
+
+        dialog.bind("<Return>", lambda e: confirm_sale())
+
 
     # ── UI mode helpers ───────────────────────────────────────────────────────
 
