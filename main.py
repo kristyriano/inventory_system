@@ -230,6 +230,26 @@ class InventoryApp:
         )
         self.edit_button.pack(side="right", padx=(0, 12))
 
+        # Restock / increase stock button
+        self.restock_button = tk.Button(
+            table_header,
+            text="📦  Restock Selected",
+            font=("Segoe UI", 10, "bold"),
+            bg="#eff6ff",
+            fg="#1d4ed8",
+            activebackground="#dbeafe",
+            activeforeground="#1e3a8a",
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            padx=12,
+            pady=4,
+            highlightthickness=1,
+            highlightbackground="#93c5fd",
+            command=self.restock_stock_dialog,
+        )
+        self.restock_button.pack(side="right", padx=(0, 8))
+
         # IS-8: Sell / decrease stock button
         self.sell_button = tk.Button(
             table_header,
@@ -474,6 +494,167 @@ class InventoryApp:
         self.update_summary()
         self.status_label.config(text=f"Removed: {removed_name}")
 
+
+    # ── Restock: Increase stock when new inventory arrives ─────────────────────
+
+    def restock_stock_dialog(self):
+        """
+        Opens a modal dialog for the manager to enter the number of units
+        received for the selected product. Adds the amount to the product's
+        quantity so the inventory reflects the newly arrived stock.
+        """
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning(
+                "No Selection",
+                "Please select a product row in the table before restocking.",
+            )
+            return
+
+        all_items     = self.tree.get_children()
+        restock_index = list(all_items).index(selected[0])
+        product       = self.products[restock_index]
+
+        # ── Build the restock dialog ──────────────────────────────────────
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Restock Product")
+        dialog.geometry("360x260")
+        dialog.resizable(False, False)
+        dialog.configure(bg="white")
+        dialog.grab_set()
+
+        # Center over main window
+        self.root.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width()  // 2) - 180
+        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - 130
+        dialog.geometry(f"+{x}+{y}")
+
+        # Dialog header bar — indigo to distinguish from the green sell dialog
+        dialog_header = tk.Frame(dialog, bg="#1d4ed8", height=48)
+        dialog_header.pack(fill="x")
+        dialog_header.pack_propagate(False)
+        tk.Label(
+            dialog_header,
+            text="Restock Product",
+            font=("Segoe UI", 13, "bold"),
+            bg="#1d4ed8",
+            fg="white",
+        ).pack(side="left", padx=16, pady=12)
+
+        # Product info (read-only)
+        info_frame = tk.Frame(dialog, bg="white")
+        info_frame.pack(fill="x", padx=20, pady=(16, 0))
+
+        tk.Label(
+            info_frame,
+            text=f"Product:  {product['name']}",
+            font=("Segoe UI", 10, "bold"),
+            bg="white",
+            fg="#1f2937",
+        ).pack(anchor="w")
+
+        tk.Label(
+            info_frame,
+            text=f"Current Stock:  {product['quantity']} units",
+            font=("Segoe UI", 10),
+            bg="white",
+            fg="#6b7280",
+        ).pack(anchor="w", pady=(4, 0))
+
+        # Units received entry
+        entry_frame = tk.Frame(dialog, bg="white")
+        entry_frame.pack(fill="x", padx=20, pady=(14, 0))
+
+        tk.Label(
+            entry_frame,
+            text="Units Received",
+            font=("Segoe UI", 10, "bold"),
+            bg="white",
+            fg="#374151",
+        ).pack(anchor="w")
+
+        qty_entry = tk.Entry(
+            entry_frame,
+            font=("Segoe UI", 11),
+            bg="white",
+            fg="#111827",
+            relief="solid",
+            bd=1,
+            highlightthickness=1,
+            highlightbackground="#cbd5e1",
+            highlightcolor="#1d4ed8",
+            width=16,
+        )
+        qty_entry.pack(anchor="w", pady=(6, 0), ipady=6)
+        qty_entry.focus_set()
+
+        # ── Inner confirm logic ───────────────────────────────────────────
+        def confirm_restock():
+            raw = qty_entry.get().strip()
+
+            # Validate: must be a positive integer
+            try:
+                units_received = int(raw)
+                if units_received <= 0:
+                    raise ValueError
+            except ValueError:
+                messagebox.showerror(
+                    "Invalid Input",
+                    "Units received must be a positive whole number.",
+                    parent=dialog,
+                )
+                return
+
+            # Add stock
+            self.products[restock_index]["quantity"] += units_received
+            new_qty = self.products[restock_index]["quantity"]
+
+            self.refresh_table()
+            self.update_summary()
+            dialog.destroy()
+
+            self.status_label.config(
+                text=f"Restocked {units_received} unit(s) of {product['name']} — {new_qty} in stock"
+            )
+
+        # Confirm / Cancel buttons
+        btn_frame = tk.Frame(dialog, bg="white")
+        btn_frame.pack(fill="x", padx=20, pady=(16, 0))
+
+        tk.Button(
+            btn_frame,
+            text="Confirm Restock",
+            font=("Segoe UI", 10, "bold"),
+            bg="#1d4ed8",
+            fg="white",
+            activebackground="#1e3a8a",
+            activeforeground="white",
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            padx=14,
+            pady=8,
+            command=confirm_restock,
+        ).pack(side="left")
+
+        tk.Button(
+            btn_frame,
+            text="Cancel",
+            font=("Segoe UI", 10),
+            bg="#eef2f7",
+            fg="#1f2937",
+            activebackground="#e5e7eb",
+            activeforeground="#111827",
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            padx=14,
+            pady=8,
+            command=dialog.destroy,
+        ).pack(side="left", padx=(10, 0))
+
+        # Allow Enter key to confirm
+        dialog.bind("<Return>", lambda e: confirm_restock())
 
     # ── IS-8: Decrease stock when items are sold ─────────────────────────────
 
