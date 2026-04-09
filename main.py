@@ -9,7 +9,7 @@ class InventoryApp:
 
         self.root = root
 
-        self.root.title("Invntra - Inventory Registra")
+        self.root.title("Invntry - Inventory Registry")
 
         self.root.configure(bg="#f3f6fb")
  
@@ -28,6 +28,10 @@ class InventoryApp:
         # Holds the current search string; empty string means no filter active.
         self.search_var = tk.StringVar()
         self.search_var.trace_add("write", lambda *_: self.apply_search_filter())
+
+        # --- LOW STOCK THRESHOLD ---
+        # Products with quantity <= this value are flagged as low stock.
+        self.low_stock_threshold = 5
  
         self.configure_styles()
 
@@ -95,7 +99,7 @@ class InventoryApp:
 
             header,
 
-            text="Invntra - Inventory Registra",
+            text="Invntry - Inventory Registry",
 
             font=("Segoe UI", 22, "bold"),
 
@@ -310,6 +314,56 @@ class InventoryApp:
         )
 
         summary_text.pack(side="left", pady=28)
+
+        # Vertical divider
+        tk.Frame(summary_card, bg="#e5e7eb", width=1).pack(
+            side="left", fill="y", padx=24, pady=16
+        )
+
+        # Low-stock count
+        self.low_stock_count_label = tk.Label(
+            summary_card,
+            text="0",
+            font=("Segoe UI", 24, "bold"),
+            bg="white",
+            fg="#b45309",
+        )
+        self.low_stock_count_label.pack(side="left", padx=(0, 8), pady=20)
+
+        tk.Label(
+            summary_card,
+            text="Low stock",
+            font=("Segoe UI", 11),
+            bg="white",
+            fg="#4b5563",
+        ).pack(side="left", pady=28)
+
+        # Threshold spinner — packed on the far right of the summary card
+        tk.Label(
+            summary_card,
+            text="Alert threshold:",
+            font=("Segoe UI", 9),
+            bg="white",
+            fg="#6b7280",
+        ).pack(side="right", padx=(0, 4), pady=28)
+
+        self.threshold_spin = tk.Spinbox(
+            summary_card,
+            from_=1,
+            to=999,
+            width=4,
+            font=("Segoe UI", 10),
+            relief="solid",
+            bd=1,
+            highlightthickness=1,
+            highlightbackground="#cbd5e1",
+            command=self._on_threshold_change,
+        )
+        self.threshold_spin.delete(0, "end")
+        self.threshold_spin.insert(0, str(self.low_stock_threshold))
+        self.threshold_spin.pack(side="right", padx=(0, 20), pady=28)
+        self.threshold_spin.bind("<FocusOut>", lambda e: self._on_threshold_change())
+        self.threshold_spin.bind("<Return>", lambda e: self._on_threshold_change())
  
         # Table card
 
@@ -609,6 +663,10 @@ class InventoryApp:
         self.tree.column("price", minwidth=120, anchor="center", stretch=True)
 
         self.tree.column("quantity", minwidth=120, anchor="center", stretch=True)
+
+        # Row colour tags for low-stock highlighting
+        self.tree.tag_configure("low_stock",  background="#fff7ed", foreground="#92400e")
+        self.tree.tag_configure("out_of_stock", background="#fff1f2", foreground="#9f1239")
  
     # ── Helper ───────────────────────────────────────────────────────────────
  
@@ -1554,6 +1612,16 @@ class InventoryApp:
             # Match against name OR category (case-insensitive)
             if query and query not in product["name"].lower() and query not in product["category"].lower():
                 continue
+            # Determine row tag based on stock level
+            qty = product["quantity"]
+            threshold = self.low_stock_threshold if hasattr(self, "low_stock_threshold") else 5
+            if qty == 0:
+                tag = ("out_of_stock",)
+            elif qty <= threshold:
+                tag = ("low_stock",)
+            else:
+                tag = ()
+
             self.tree.insert(
                 "",
                 "end",
@@ -1563,6 +1631,7 @@ class InventoryApp:
                     f"${product['price']:.2f}",
                     product["quantity"],
                 ),
+                tags=tag,
             )
             matched += 1
 
@@ -1579,6 +1648,18 @@ class InventoryApp:
         """Called automatically whenever the search field changes."""
         self.refresh_table()
 
+    def _on_threshold_change(self):
+        """Update the low-stock threshold from the spinner and refresh the view."""
+        try:
+            val = int(self.threshold_spin.get())
+            if val < 1:
+                val = 1
+            self.low_stock_threshold = val
+        except ValueError:
+            pass
+        self.refresh_table()
+        self.update_summary()
+
     def _clear_search(self):
         """Clear the search field and restore the full product list."""
         self.search_var.set("")
@@ -1587,6 +1668,16 @@ class InventoryApp:
     def update_summary(self):
 
         self.total_products_label.config(text=str(len(self.products)))
+
+        # Count products at or below the low-stock threshold (including out of stock)
+        if hasattr(self, "low_stock_threshold") and hasattr(self, "low_stock_count_label"):
+            low_count = sum(
+                1 for p in self.products if p["quantity"] <= self.low_stock_threshold
+            )
+            self.low_stock_count_label.config(
+                text=str(low_count),
+                fg="#b45309" if low_count == 0 else "#b45309",
+            )
  
     def clear_fields(self):
 
