@@ -9,7 +9,7 @@ class InventoryApp:
 
         self.root = root
 
-        self.root.title("Invntry - Inventory Registry")
+        self.root.title("Invntra - Inventory Registra")
 
         self.root.configure(bg="#f3f6fb")
  
@@ -17,6 +17,10 @@ class InventoryApp:
         self.root.state("zoomed")
  
         self.products = []
+
+        # --- DAMAGE LOG ---
+        # Each entry: {product, category, qty, reason, timestamp}
+        self.depletion_log = []
  
         # --- EDIT STATE ---
 
@@ -31,7 +35,7 @@ class InventoryApp:
 
         # --- LOW STOCK THRESHOLD ---
         # Products with quantity <= this value are flagged as low stock.
-        self.low_stock_threshold = 5
+        self.low_stock_threshold = 20
  
         self.configure_styles()
 
@@ -57,7 +61,7 @@ class InventoryApp:
 
             borderwidth=0,
 
-            font=("Segoe UI", 10),
+            font=("Segoe UI", 12),
 
         )
  
@@ -69,7 +73,7 @@ class InventoryApp:
 
             foreground="#1e3a8a",
 
-            font=("Segoe UI", 10, "bold"),
+            font=("Segoe UI", 12, "bold"),
 
             relief="flat",
 
@@ -99,7 +103,7 @@ class InventoryApp:
 
             header,
 
-            text="Invntry - Inventory Registry",
+            text="Invntra - Inventory Registra",
 
             font=("Segoe UI", 22, "bold"),
 
@@ -111,21 +115,7 @@ class InventoryApp:
 
         title.pack(side="left", padx=30, pady=20)
  
-        self.subtitle_label = tk.Label(
 
-            header,
-
-            text="Add New Products",
-
-            font=("Segoe UI", 11),
-
-            bg="#1e3a8a",
-
-            fg="#dbeafe",
-
-        )
-
-        self.subtitle_label.pack(side="right", padx=30, pady=28)
  
         # ── Main container ───────────────────────────────────────────────────
 
@@ -173,7 +163,7 @@ class InventoryApp:
 
             text="Fill in the fields below to add a new product.",
 
-            font=("Segoe UI", 10),
+            font=("Segoe UI", 12),
 
             bg="white",
 
@@ -197,7 +187,7 @@ class InventoryApp:
 
             text="Add Product",
 
-            font=("Segoe UI", 11, "bold"),
+            font=("Segoe UI", 12, "bold"),
 
             bg="#2563eb",
 
@@ -229,7 +219,7 @@ class InventoryApp:
 
             text="Clear Fields",
 
-            font=("Segoe UI", 10),
+            font=("Segoe UI", 12),
 
             bg="#eef2f7",
 
@@ -282,6 +272,16 @@ class InventoryApp:
         summary_card.pack(fill="x", pady=(0, 18))
 
         summary_card.pack_propagate(False)
+
+        # Confirmation / status message — far right of summary card
+        self.status_label = tk.Label(
+            summary_card,
+            text="",
+            font=("Segoe UI", 12, "bold"),
+            bg="white",
+            fg="#1f2937",
+        )
+        self.status_label.pack(side="right", padx=24)
  
         self.total_products_label = tk.Label(
 
@@ -305,7 +305,7 @@ class InventoryApp:
 
             text="Products currently in inventory",
 
-            font=("Segoe UI", 11),
+            font=("Segoe UI", 12),
 
             bg="white",
 
@@ -320,7 +320,7 @@ class InventoryApp:
             side="left", fill="y", padx=24, pady=16
         )
 
-        # Low-stock count
+        # Low-stock count + inline threshold control grouped together
         self.low_stock_count_label = tk.Label(
             summary_card,
             text="0",
@@ -333,38 +333,39 @@ class InventoryApp:
         tk.Label(
             summary_card,
             text="Low stock",
-            font=("Segoe UI", 11),
+            font=("Segoe UI", 12),
             bg="white",
             fg="#4b5563",
         ).pack(side="left", pady=28)
 
-        # Threshold spinner — packed on the far right of the summary card
-        tk.Label(
-            summary_card,
-            text="Alert threshold:",
-            font=("Segoe UI", 9),
-            bg="white",
-            fg="#6b7280",
-        ).pack(side="right", padx=(0, 4), pady=28)
-
-        self.threshold_spin = tk.Spinbox(
-            summary_card,
-            from_=1,
-            to=999,
-            width=4,
-            font=("Segoe UI", 10),
-            relief="solid",
-            bd=1,
-            highlightthickness=1,
-            highlightbackground="#cbd5e1",
-            command=self._on_threshold_change,
+        # Vertical divider
+        tk.Frame(summary_card, bg="#e5e7eb", width=1).pack(
+            side="left", fill="y", padx=24, pady=16
         )
-        self.threshold_spin.delete(0, "end")
-        self.threshold_spin.insert(0, str(self.low_stock_threshold))
-        self.threshold_spin.pack(side="right", padx=(0, 20), pady=28)
-        self.threshold_spin.bind("<FocusOut>", lambda e: self._on_threshold_change())
-        self.threshold_spin.bind("<Return>", lambda e: self._on_threshold_change())
- 
+
+        # depletion items count — clicking the count or label toggles the log
+        self.depletion_count_label = tk.Label(
+            summary_card,
+            text="0",
+            font=("Segoe UI", 24, "bold"),
+            bg="white",
+            fg="#854d0e",
+            cursor="hand2",
+        )
+        self.depletion_count_label.pack(side="left", padx=(0, 8), pady=20)
+        self.depletion_count_label.bind("<Button-1>", lambda e: self.toggle_depletion_log())
+
+        self.depletion_text_btn = tk.Label(
+            summary_card,
+            text="Depletion  ▾",
+            font=("Segoe UI", 12),
+            bg="white",
+            fg="#854d0e",
+            cursor="hand2",
+        )
+        self.depletion_text_btn.pack(side="left", pady=28)
+        self.depletion_text_btn.bind("<Button-1>", lambda e: self.toggle_depletion_log())
+
         # Table card
 
         table_card = tk.Frame(
@@ -382,7 +383,73 @@ class InventoryApp:
         )
 
         table_card.pack(fill="both", expand=True)
- 
+
+        # ── Depletion log panel ─────────────────────────────────────────────────
+        self.depletion_panel_visible = False
+
+        self.depletion_panel = tk.Frame(
+            right_section,
+            bg="white",
+            bd=0,
+            highlightthickness=1,
+            highlightbackground="#fde68a",
+        )
+        # Not packed initially — shown/hidden via toggle_depletion_log()
+
+        depletion_panel_header = tk.Frame(self.depletion_panel, bg="#fefce8")
+        depletion_panel_header.pack(fill="x")
+
+        tk.Label(
+            depletion_panel_header,
+            text="⚠  Depletion Log",
+            font=("Segoe UI", 12, "bold"),
+            bg="#fefce8",
+            fg="#854d0e",
+        ).pack(side="left", padx=16, pady=10)
+
+        tk.Button(
+            depletion_panel_header,
+            text="✕  Close",
+            font=("Segoe UI", 9),
+            bg="#fefce8",
+            fg="#854d0e",
+            activebackground="#fef9c3",
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            padx=8,
+            pady=4,
+            command=self.toggle_depletion_log,
+        ).pack(side="right", padx=12, pady=8)
+
+        depletion_log_container = tk.Frame(self.depletion_panel, bg="white")
+        depletion_log_container.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+
+        depletion_scrollbar = ttk.Scrollbar(depletion_log_container)
+        depletion_scrollbar.pack(side="right", fill="y")
+
+        self.depletion_tree = ttk.Treeview(
+            depletion_log_container,
+            columns=("timestamp", "product", "category", "qty", "reason"),
+            show="headings",
+            height=6,
+            yscrollcommand=depletion_scrollbar.set,
+        )
+        self.depletion_tree.pack(fill="both", expand=True)
+        depletion_scrollbar.config(command=self.depletion_tree.yview)
+
+        self.depletion_tree.heading("timestamp", text="Date & Time")
+        self.depletion_tree.heading("product",   text="Product")
+        self.depletion_tree.heading("category",  text="Category")
+        self.depletion_tree.heading("qty",       text="Qty depletion")
+        self.depletion_tree.heading("reason",    text="Reason")
+
+        self.depletion_tree.column("timestamp", width=140, anchor="center", stretch=False)
+        self.depletion_tree.column("product",   width=160, anchor="center", stretch=True)
+        self.depletion_tree.column("category",  width=120, anchor="center", stretch=True)
+        self.depletion_tree.column("qty",       width=90,  anchor="center", stretch=False)
+        self.depletion_tree.column("reason",    width=200, anchor="center", stretch=True)
+
         table_header = tk.Frame(table_card, bg="white")
 
         table_header.pack(fill="x", padx=20, pady=(20, 8))
@@ -403,29 +470,13 @@ class InventoryApp:
 
         table_title.pack(side="left")
  
-        self.status_label = tk.Label(
-
-            table_header,
-
-            text="Ready",
-
-            font=("Segoe UI", 10),
-
-            bg="white",
-
-            fg="#6b7280",
-
-        )
-
-        self.status_label.pack(side="right")
- 
         self.edit_button = tk.Button(
 
             table_header,
 
-            text="✏  Edit Selected",
+            text="✏  Edit",
 
-            font=("Segoe UI", 10, "bold"),
+            font=("Segoe UI", 12, "bold"),
 
             bg="#f0f6ff",
 
@@ -459,9 +510,9 @@ class InventoryApp:
 
             table_header,
 
-            text="📦  Restock Selected",
+            text="📦  Restock",
 
-            font=("Segoe UI", 10, "bold"),
+            font=("Segoe UI", 12, "bold"),
 
             bg="#eff6ff",
 
@@ -495,9 +546,9 @@ class InventoryApp:
 
             table_header,
 
-            text="🛒  Sell Selected",
+            text="🛒  Sell",
 
-            font=("Segoe UI", 10, "bold"),
+            font=("Segoe UI", 12, "bold"),
 
             bg="#f0fdf4",
 
@@ -526,14 +577,34 @@ class InventoryApp:
         )
 
         self.sell_button.pack(side="right", padx=(0, 8))
- 
+
+        # Depletion report button
+        self.depletion_button = tk.Button(
+            table_header,
+            text="⚠  Depletion",
+            font=("Segoe UI", 12, "bold"),
+            bg="#fefce8",
+            fg="#854d0e",
+            activebackground="#fef9c3",
+            activeforeground="#713f12",
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            padx=8,
+            pady=4,
+            highlightthickness=1,
+            highlightbackground="#fde68a",
+            command=self.report_depletion_dialog,
+        )
+        self.depletion_button.pack(side="right", padx=(0, 8))
+
         self.remove_button = tk.Button(
 
             table_header,
 
-            text="🗑  Remove Selected",
+            text="🗑  Remove",
 
-            font=("Segoe UI", 10, "bold"),
+            font=("Segoe UI", 12, "bold"),
 
             bg="#fff1f2",
 
@@ -570,7 +641,7 @@ class InventoryApp:
         search_icon = tk.Label(
             search_bar,
             text="🔍",
-            font=("Segoe UI", 11),
+            font=("Segoe UI", 12),
             bg="white",
             fg="#6b7280",
         )
@@ -579,7 +650,7 @@ class InventoryApp:
         tk.Label(
             search_bar,
             text="Search",
-            font=("Segoe UI", 10, "bold"),
+            font=("Segoe UI", 12, "bold"),
             bg="white",
             fg="#374151",
         ).pack(side="left", padx=(0, 8))
@@ -587,7 +658,7 @@ class InventoryApp:
         self.search_entry = tk.Entry(
             search_bar,
             textvariable=self.search_var,
-            font=("Segoe UI", 10),
+            font=("Segoe UI", 12),
             bg="#f8fafc",
             fg="#111827",
             relief="solid",
@@ -678,7 +749,7 @@ class InventoryApp:
 
             text=label_text,
 
-            font=("Segoe UI", 10, "bold"),
+            font=("Segoe UI", 12, "bold"),
 
             bg="white",
 
@@ -692,7 +763,7 @@ class InventoryApp:
 
             parent,
 
-            font=("Segoe UI", 11),
+            font=("Segoe UI", 12),
 
             bg="white",
 
@@ -1462,11 +1533,204 @@ class InventoryApp:
  
         dialog.bind("<Return>", lambda e: confirm_sale())
  
+    # ── Depletion report ─────────────────────────────────────────────────────────
+
+    def report_depletion_dialog(self):
+        """
+        Opens a modal dialog for the employee to enter the number of depletion
+        units and a reason. Deducts from stock and logs the entry.
+        """
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning(
+                "No Selection",
+                "Please select a product row in the table before reporting depletion.",
+            )
+            return
+
+        all_items   = self.tree.get_children()
+        dmg_index   = list(all_items).index(selected[0])
+        product     = self.products[dmg_index]
+
+        if product["quantity"] == 0:
+            messagebox.showwarning(
+                "No Stock",
+                f'"{product["name"]}" has no stock to report as depleted.',
+            )
+            return
+
+        # Build dialog
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Report depletion Items")
+        dialog.geometry("380x320")
+        dialog.resizable(False, False)
+        dialog.configure(bg="white")
+        dialog.grab_set()
+
+        self.root.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width()  // 2) - 190
+        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - 160
+        dialog.geometry(f"+{x}+{y}")
+
+        # Header
+        hdr = tk.Frame(dialog, bg="#854d0e", height=48)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+        tk.Label(
+            hdr,
+            text="⚠  Report depletion Items",
+            font=("Segoe UI", 12, "bold"),
+            bg="#854d0e",
+            fg="white",
+        ).pack(side="left", padx=16, pady=12)
+
+        # Product info
+        info = tk.Frame(dialog, bg="white")
+        info.pack(fill="x", padx=20, pady=(14, 0))
+        tk.Label(
+            info, text=f"Product:  {product['name']}",
+            font=("Segoe UI", 10, "bold"), bg="white", fg="#1f2937",
+        ).pack(anchor="w")
+        tk.Label(
+            info, text=f"Current Stock:  {product['quantity']} units",
+            font=("Segoe UI", 10), bg="white", fg="#6b7280",
+        ).pack(anchor="w", pady=(4, 0))
+
+        # Units depletion
+        ef = tk.Frame(dialog, bg="white")
+        ef.pack(fill="x", padx=20, pady=(12, 0))
+        tk.Label(
+            ef, text="Units depletion",
+            font=("Segoe UI", 10, "bold"), bg="white", fg="#374151",
+        ).pack(anchor="w")
+        qty_entry = tk.Entry(
+            ef, font=("Segoe UI", 11), bg="white", fg="#111827",
+            relief="solid", bd=1, highlightthickness=1,
+            highlightbackground="#cbd5e1", highlightcolor="#854d0e", width=16,
+        )
+        qty_entry.pack(anchor="w", pady=(6, 0), ipady=6)
+        qty_entry.focus_set()
+
+        # Reason
+        rf = tk.Frame(dialog, bg="white")
+        rf.pack(fill="x", padx=20, pady=(10, 0))
+        tk.Label(
+            rf, text="Reason",
+            font=("Segoe UI", 10, "bold"), bg="white", fg="#374151",
+        ).pack(anchor="w")
+        reason_entry = tk.Entry(
+            rf, font=("Segoe UI", 11), bg="white", fg="#111827",
+            relief="solid", bd=1, highlightthickness=1,
+            highlightbackground="#cbd5e1", highlightcolor="#854d0e",
+        )
+        reason_entry.pack(fill="x", pady=(6, 0), ipady=6)
+
+        def confirm_depletion():
+            # Validate quantity
+            raw = qty_entry.get().strip()
+            try:
+                units_depletion = int(raw)
+                if units_depletion <= 0:
+                    raise ValueError
+            except ValueError:
+                messagebox.showerror(
+                    "Invalid Input",
+                    "Units depletion must be a positive whole number.",
+                    parent=dialog,
+                )
+                return
+
+            if units_depletion > product["quantity"]:
+                messagebox.showwarning(
+                    "Exceeds Stock",
+                    f'Only {product["quantity"]} unit(s) available. '
+                    f'Cannot report {units_depletion} depletion unit(s).',
+                    parent=dialog,
+                )
+                return
+
+            reason = reason_entry.get().strip() or "No reason provided"
+
+            # Deduct from stock
+            self.products[dmg_index]["quantity"] -= units_depletion
+            new_qty = self.products[dmg_index]["quantity"]
+
+            # Log the depletion report
+            import datetime
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            self.depletion_log.append({
+                "timestamp": timestamp,
+                "product":   product["name"],
+                "category":  product["category"],
+                "qty":       units_depletion,
+                "reason":    reason,
+            })
+
+            self.refresh_table()
+            self.update_summary()
+            self._refresh_depletion_tree()
+            dialog.destroy()
+
+            self.status_label.config(
+                text=f"Depletion reported: {units_depletion} unit(s) of {product['name']} — {new_qty} remaining"
+            )
+
+        # Buttons
+        bf = tk.Frame(dialog, bg="white")
+        bf.pack(fill="x", padx=20, pady=(14, 0))
+        tk.Button(
+            bf, text="Submit Report",
+            font=("Segoe UI", 10, "bold"),
+            bg="#854d0e", fg="white",
+            activebackground="#713f12", activeforeground="white",
+            relief="flat", bd=0, cursor="hand2",
+            padx=14, pady=8, command=confirm_depletion,
+        ).pack(side="left")
+        tk.Button(
+            bf, text="Cancel",
+            font=("Segoe UI", 10),
+            bg="#eef2f7", fg="#1f2937",
+            activebackground="#e5e7eb", activeforeground="#111827",
+            relief="flat", bd=0, cursor="hand2",
+            padx=14, pady=8, command=dialog.destroy,
+        ).pack(side="left", padx=(10, 0))
+        dialog.bind("<Return>", lambda e: confirm_depletion())
+
+    def toggle_depletion_log(self):
+        """Show or hide the depletion log panel below the table card."""
+        self.depletion_panel_visible = not self.depletion_panel_visible
+        if self.depletion_panel_visible:
+            self.depletion_panel.pack(fill="x", pady=(8, 0))
+            self.depletion_text_btn.config(text="Depletion  ▴")
+        else:
+            self.depletion_panel.pack_forget()
+            self.depletion_text_btn.config(text="Depletion  ▾")
+
+    def _refresh_depletion_tree(self):
+        """Repopulate the depletion log Treeview from self.depletion_log."""
+        for row in self.depletion_tree.get_children():
+            self.depletion_tree.delete(row)
+        for entry in reversed(self.depletion_log):   # most recent first
+            self.depletion_tree.insert(
+                "", "end",
+                values=(
+                    entry["timestamp"],
+                    entry["product"],
+                    entry["category"],
+                    entry["qty"],
+                    entry["reason"],
+                ),
+            )
+        # Update the summary card depletion count
+        total_depletion = sum(e["qty"] for e in self.depletion_log)
+        if hasattr(self, "depletion_count_label"):
+            self.depletion_count_label.config(text=str(total_depletion))
+
     # ── UI mode helpers ───────────────────────────────────────────────────────
 
     def _apply_edit_mode_ui(self):
 
-        self.subtitle_label.config(text="Editing Product")
+        self.status_label.config(text="Edit mode — modify fields and click Save Changes")
 
         self.form_title_label.config(text="Edit Product", fg="#b45309")
 
@@ -1498,7 +1762,7 @@ class InventoryApp:
 
         self.clear_fields()
  
-        self.subtitle_label.config(text="Add New Products")
+        self.status_label.config(text="")
 
         self.form_title_label.config(text="Product Information", fg="#1f2937")
 
@@ -1647,18 +1911,6 @@ class InventoryApp:
     def apply_search_filter(self):
         """Called automatically whenever the search field changes."""
         self.refresh_table()
-
-    def _on_threshold_change(self):
-        """Update the low-stock threshold from the spinner and refresh the view."""
-        try:
-            val = int(self.threshold_spin.get())
-            if val < 1:
-                val = 1
-            self.low_stock_threshold = val
-        except ValueError:
-            pass
-        self.refresh_table()
-        self.update_summary()
 
     def _clear_search(self):
         """Clear the search field and restore the full product list."""
