@@ -1,0 +1,17 @@
+{
+  "admin": {
+    "password": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+    "role": "admin",
+    "created_at": "2026-04-15 19:16"
+  },
+  "employee": {
+    "password": "2fdc0177057d3a5c6c2c0821e01f4fa8d90f9a3bb7afd82b0db526af98d68de8",
+    "role": "employee",
+    "created_at": "2026-04-15 20:01"
+  },
+  "manager": {
+    "password": "6ee4a469cd4e91053847f5d3fcb61dbcc91e8f0ef10be7748da4c4a1ba382d17",
+    "role": "manager",
+    "created_at": "2026-04-15 20:04"
+  }
+}

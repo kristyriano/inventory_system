@@ -1,0 +1,12 @@
+{
+  "backup_timestamp": "20260415_191857",
+  "products": [],
+  "depletion_log": [],
+  "users": {
+    "admin": {
+      "password": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+      "role": "admin",
+      "created_at": "2026-04-15 19:16"
+    }
+  }
+}
